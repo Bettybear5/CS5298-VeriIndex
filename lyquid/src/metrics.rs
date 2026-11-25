@@ -69,12 +69,12 @@ fn dedupe(logs: &[EventLog]) -> Vec<&EventLog> {
     out
 }
 
-pub fn filter_logs(
-    logs: &[EventLog],
+pub fn filter_logs<'a>(
+    logs: &'a [EventLog],
     contract: &str,
     from_block: u64,
     to_block: u64,
-) -> Result<Vec<&EventLog>, MetricError> {
+) -> Result<Vec<&'a EventLog>, MetricError> {
     if from_block > to_block {
         return Err(MetricError::InvalidRange);
     }
