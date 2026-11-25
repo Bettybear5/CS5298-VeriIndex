@@ -59,8 +59,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     text = args.source.read_text(encoding="utf-8")
-    if args.final and "[TBD]" in text:
-        print("refusing to build a final PDF: report still contains [TBD]", file=sys.stderr)
+    if args.final and ("[TBD" in text or "[PENDING" in text):
+        print("refusing to build a final PDF: report still contains TBD/PENDING placeholders", file=sys.stderr)
         return 2
     body = markdown.markdown(
         text,
