@@ -1,11 +1,10 @@
-name: Export Lyquor images
+name: Export Lyquor tools image
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: write
-  packages: read
 
 jobs:
   export:
@@ -24,21 +23,12 @@ jobs:
           gzip -1 lyquor-tools-v0.8.4.tar
           ls -lh lyquor-tools-v0.8.4.tar.gz
 
-      - name: Export bartender image
-        run: |
-          skopeo copy --override-arch amd64 \
-            docker://ghcr.io/lyquor-labs/lyquids:bartender-bartender_release-latest \
-            docker-archive:bartender-v0.8.4.tar:ghcr.io/lyquor-labs/lyquids:bartender-bartender_release-latest
-          gzip -1 bartender-v0.8.4.tar
-          ls -lh bartender-v0.8.4.tar.gz
-
-      - name: Publish release assets
+      - name: Publish release asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "images-v0.8.4" \
+          gh release create "tools-v0.8.4" \
             lyquor-tools-v0.8.4.tar.gz \
-            bartender-v0.8.4.tar.gz \
-            --title "Lyquor images v0.8.4" \
-            --notes "Docker image exports for offline loading"
+            --title "Lyquor tools image v0.8.4" \
+            --notes "Docker image export for offline loading. Bartender is pulled by shaker at runtime."
