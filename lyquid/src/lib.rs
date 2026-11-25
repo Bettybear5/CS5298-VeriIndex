@@ -153,11 +153,16 @@ fn propose(
         to_block,
     };
     let node_id = ctx.node_id.to_string();
-    rpc::index_request(&rpc_url, &request, &node_id)
+    let proposal = rpc::index_request(&rpc_url, &request, &node_id)?;
+    // TEMP-DEBUG: remove after trigger diagnosis.
+    lyquid::println!("TEMP-DEBUG propose returned result_hash={}", proposal.result_hash);
+    Ok(proposal)
 }
 
 #[method::instance(group = oracle::two_phase::veriindex_oracle)]
 fn aggregate(ctx: &_) -> LyquidResult<Option<CertifiedCallParams>> {
+    // TEMP-DEBUG: remove after trigger diagnosis.
+    lyquid::println!("TEMP-DEBUG aggregate entered inputs={}", ctx.inputs.len());
     let init = decode_by_fields!(
         ctx.init,
         contract: String,
@@ -232,6 +237,8 @@ fn aggregate(ctx: &_) -> LyquidResult<Option<CertifiedCallParams>> {
     };
     let input = encode_by_fields!(finalized: FinalizedResult = finalized).into();
 
+    // TEMP-DEBUG: remove after trigger diagnosis.
+    lyquid::println!("TEMP-DEBUG aggregate returning CertifiedCallParams");
     Ok(Some(CertifiedCallParams {
         origin: Address::ZERO,
         method: "update".into(),
@@ -358,7 +365,11 @@ fn report_result(
     )
     .into();
 
+    // TEMP-DEBUG: remove after trigger diagnosis.
+    lyquid::println!("TEMP-DEBUG report_result entering propose_and_certify");
     let call = oracle.propose_and_certify(&mut ctx, target, init, None, None)?;
+    // TEMP-DEBUG: remove after trigger diagnosis.
+    lyquid::println!("TEMP-DEBUG report_result returned from propose_and_certify has_call={}", call.is_some());
     if let Some(call) = call {
         let _ = submit_certified_call!(call)?;
         Ok(true)
