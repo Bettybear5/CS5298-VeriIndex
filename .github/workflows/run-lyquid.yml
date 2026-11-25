@@ -176,23 +176,59 @@ jobs:
           fi
           echo "Range: $FROM..$TO" | tee "$GITHUB_WORKSPACE/evidence/range.txt"
 
+          CONTRACT_ADDR="0xabc0000000000000000000000000000000000001"
+          cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+            "index_local(string,string,uint64,uint64) returns (string)" \
+            "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
+            > "$GITHUB_WORKSPACE/evidence/index-local.json"
+          cat "$GITHUB_WORKSPACE/evidence/index-local.json"
+
+          python3 - "$GITHUB_WORKSPACE/evidence/index-local.json" <<'PY'
+          import json, os, sys
+          text = open(sys.argv[1], encoding="utf-8", errors="replace").read().strip()
+          data = None
+          try:
+              data = json.loads(text)
+          except json.JSONDecodeError:
+              start = text.find("{")
+              end = text.rfind("}")
+              if start != -1 and end != -1:
+                  data = json.loads(text[start:end+1])
+          if isinstance(data, str):
+              data = json.loads(data)
+          if not isinstance(data, dict):
+              raise SystemExit(f"cannot parse index_local output: {text[:500]}")
+          proposal = data.get("proposal", data)
+          result = proposal["result"]
+          values = {
+              "VALUE": str(result["value"]),
+              "EVENT_COUNT": str(result["event_count"]),
+              "RESULT_HASH": str(proposal["result_hash"]),
+          }
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              for k, v in values.items():
+                  env.write(f"{k}={v}\n")
+          print(values)
+          PY
+
           cast send --private-key "$PK" --rpc-url "$NODE_WS" \
-            "$LYQUID_CONTRACT" "report_result(string,string,uint64,uint64)" \
-            "0xabc0000000000000000000000000000000000001" \
-            "deposit_total" "$FROM" "$TO" \
-            | tee "$GITHUB_WORKSPACE/evidence/report.log"
+            "$LYQUID_CONTRACT" \
+            "submit_result(string,string,uint64,uint64,string,string,uint64,uint16)" \
+            "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
+            "$RESULT_HASH" "$VALUE" "$EVENT_COUNT" 1 \
+            | tee "$GITHUB_WORKSPACE/evidence/submit.log"
 
           for i in $(seq 1 60); do
             RESULT=$(cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
               "get_result(string,string,uint64,uint64) returns (string)" \
-              "0xabc0000000000000000000000000000000000001" \
-              "deposit_total" "$FROM" "$TO" 2>/dev/null || true)
+              "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" 2>/dev/null || true)
             if [ -n "$RESULT" ]; then
               printf '%s\n' "$RESULT" | tee "$GITHUB_WORKSPACE/evidence/result.json"
               break
             fi
             sleep 2
           done
+          test -s "$GITHUB_WORKSPACE/evidence/result.json"
           test -s "$GITHUB_WORKSPACE/evidence/result.json"
 
       - name: Collect logs and evidence
