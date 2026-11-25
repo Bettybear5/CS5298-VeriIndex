@@ -1,0 +1,19 @@
+E3 tamper detection (from `python -m veriindex.cli demo`)
+
+Three nodes:
+- node A: value 750
+- node B: value 1749 (tampered, valid signature)
+- node C: value 750
+
+Threshold 2:
+status: CONSENSUS
+selected value: 750
+selected hash: 0x5105d284ff7de6b8fc177447a27366c5af8d170bf12a8560a357bfa3468b7c0b
+agreeing: node A, node C
+dissenting: node B
+
+Threshold 3:
+status: DISPUTED
+selected hash: null
+
+Demo result: PASS

@@ -1,0 +1,60 @@
+{
+  "fixture": "/home/bettybear5/CS5298-VeriIndex/reference/fixtures/events.json",
+  "contract": "0xAbC0000000000000000000000000000000000001",
+  "e1_determinism": {
+    "pass": true,
+    "unique_hashes": 1,
+    "canonical": "{\"chain_id\":11155111,\"contract\":\"0xabc0000000000000000000000000000000000001\",\"event_count\":6,\"from_block\":5000000,\"metric\":\"deposit_total\",\"schema_version\":1,\"to_block\":5010000,\"value\":\"750\"}"
+  },
+  "e2_correctness": {
+    "pass": true,
+    "expected": 750,
+    "actual": 750
+  },
+  "e3_tamper": {
+    "pass": true,
+    "consensus": {
+      "status": "CONSENSUS",
+      "threshold": 2,
+      "selected_hash": "0x5105d284ff7de6b8fc177447a27366c5af8d170bf12a8560a357bfa3468b7c0b",
+      "selected_result": {
+        "schema_version": 1,
+        "chain_id": 11155111,
+        "contract": "0xabc0000000000000000000000000000000000001",
+        "metric": "deposit_total",
+        "from_block": 5000000,
+        "to_block": 5010000,
+        "event_count": 6,
+        "value": "750"
+      },
+      "agreeing_nodes": [
+        "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf",
+        "0x6813eb9362372eef6200f3b1dbc3f819671cba69"
+      ],
+      "dissenting_nodes": [
+        "0x2b5ad5c4795c026514f8317c7a215e218dccd6cf"
+      ],
+      "invalid_nodes": [],
+      "valid_count": 3
+    },
+    "strict": {
+      "status": "DISPUTED",
+      "threshold": 3,
+      "selected_hash": null,
+      "selected_result": null,
+      "agreeing_nodes": [],
+      "dissenting_nodes": [
+        "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf",
+        "0x2b5ad5c4795c026514f8317c7a215e218dccd6cf",
+        "0x6813eb9362372eef6200f3b1dbc3f819671cba69"
+      ],
+      "invalid_nodes": [],
+      "valid_count": 3
+    }
+  },
+  "e4_latency": {
+    "runs": 100,
+    "mean_ms": 0.006
+  },
+  "all_offline_checks_pass": true
+}

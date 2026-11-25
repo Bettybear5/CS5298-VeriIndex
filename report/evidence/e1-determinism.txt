@@ -1,0 +1,11 @@
+E1 determinism (from `python -m veriindex.cli evaluate`)
+
+unique_hashes: 1
+runs: 5
+reversed input hash matches: true
+
+canonical JSON:
+{"chain_id":11155111,"contract":"0xabc0000000000000000000000000000000000001","event_count":6,"from_block":5000000,"metric":"deposit_total","schema_version":1,"to_block":5010000,"value":"750"}
+
+result hash:
+0x5105d284ff7de6b8fc177447a27366c5af8d170bf12a8560a357bfa3468b7c0b

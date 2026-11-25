@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node / Solidity
+node_modules/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/
+
+# Rust
+lyquid/target/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Large demo artifacts
+demo/*.mp4
+demo/*.mov
+
+# Generated report PDFs
+report/*_DRAFT.pdf
+report/CS5298_VeriIndex_Report.pdf

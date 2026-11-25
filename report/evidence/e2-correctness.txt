@@ -1,0 +1,18 @@
+E2 correctness (independent recomputation)
+
+fixture: reference/fixtures/events.json
+contract: 0xAbC0000000000000000000000000000000000001
+range: 5000000..5010000
+metric: deposit_total
+
+independent value: 750
+indexer value:      750
+pass:               true
+
+Filtered/deduplicated events:
+- Deposit 100 (block 5000001)
+- Deposit 250 (block 5000002)
+- Withdraw 50 (block 5000003)
+- Swap amountIn 1000 (block 5000004)
+- Deposit 400 (block 5000005)
+- Swap amountIn 500 (block 5000007)
