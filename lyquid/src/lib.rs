@@ -367,7 +367,7 @@ fn report_result(
 
     // TEMP-DEBUG: remove after trigger diagnosis.
     lyquid::println!("TEMP-DEBUG report_result entering propose_and_certify");
-    let call = oracle.propose_and_certify(&mut ctx, target, init, None, None)?;
+    let call = oracle.propose_and_certify(&mut ctx, target, init, None, Some(30_000))?;
     // TEMP-DEBUG: remove after trigger diagnosis.
     lyquid::println!("TEMP-DEBUG report_result returned from propose_and_certify has_call={}", call.is_some());
     if let Some(call) = call {
