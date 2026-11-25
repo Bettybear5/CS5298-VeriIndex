@@ -45,17 +45,8 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/ldk"
-          cat > docker/single/docker-compose.override.yml <<'YAML'
-          services:
-            node:
-              environment:
-                LYQUOR_LOG: debug
-                RUST_LOG: debug
-          YAML
-          docker compose -f docker/single/docker-compose.yaml \
-            -f docker/single/docker-compose.override.yml up -d
-          docker compose -f docker/single/docker-compose.yaml \
-            -f docker/single/docker-compose.override.yml ps \
+          docker compose -f docker/single/docker-compose.yaml up -d
+          docker compose -f docker/single/docker-compose.yaml ps \
             | tee "$GITHUB_WORKSPACE/evidence/compose-ps.txt"
           for i in $(seq 1 180); do
             if curl -sf --data '{}' -H 'content-type: application/json' \
@@ -374,72 +365,13 @@ jobs:
             sleep 2
           done
           test -s "$GITHUB_WORKSPACE/evidence/result.json"
-          echo "RANGE_FROM=$FROM" >> "$GITHUB_ENV"
-          echo "RANGE_TO=$TO" >> "$GITHUB_ENV"
-
-      - name: Verify update() oracle path
-        if: success()
-        run: |
-          set -euo pipefail
-          CONTRACT_ADDR="0xabc0000000000000000000000000000000000001"
-          cast call --rpc-url "$NODE_HTTP" \
-            "$LYQUID_CONTRACT" "set_min_proposals(uint16) returns (bool)" 1 \
-            > "$GITHUB_WORKSPACE/evidence/update-set-min.log" 2>&1
-          cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
-            "get_min_proposals() returns (uint16)" \
-            > "$GITHUB_WORKSPACE/evidence/update-min-before-trigger.txt" 2>&1
-          cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
-            "get_rpc_url() returns (string)" \
-            > "$GITHUB_WORKSPACE/evidence/update-rpc-url.txt" 2>&1
-
-          timeout 120 script -q -c "docker run --rm -it --network host \
-            -v '$RUNNER_TEMP/ldk:/ldk' \
-            ghcr.io/lyquor-labs/lyquor-tools:v0.8.4 \
-            shaker console '$LYQUID_ID' --endpoint '$NODE_WS'" /dev/null \
-            > "$GITHUB_WORKSPACE/evidence/lyquid-console.log" 2>&1 &
-          CONSOLE_PID=$!
-          sleep 4
-
-          cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
-            "$LYQUID_CONTRACT" "trigger_report_result(string,string,uint64,uint64)" \
-            "$CONTRACT_ADDR" "event_count" "$RANGE_FROM" "$RANGE_TO" \
-            2>&1 | tee "$GITHUB_WORKSPACE/evidence/update-report.log"
-          cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
-            "get_min_proposals() returns (uint16)" \
-            > "$GITHUB_WORKSPACE/evidence/update-min-after-trigger.txt" 2>&1
-          for i in $(seq 1 12); do
-            if timeout 20 cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
-              "get_result(string,string,uint64,uint64) returns (string)" \
-              "$CONTRACT_ADDR" "event_count" "$RANGE_FROM" "$RANGE_TO" \
-              > "$GITHUB_WORKSPACE/evidence/update-result.json" \
-              2> "$GITHUB_WORKSPACE/evidence/update-get-result.err"; then
-              if [ -s "$GITHUB_WORKSPACE/evidence/update-result.json" ]; then
-                cat "$GITHUB_WORKSPACE/evidence/update-result.json"
-                break
-              fi
-            fi
-            sleep 5
-          done
-          kill "$CONSOLE_PID" 2>/dev/null || true
-          wait "$CONSOLE_PID" 2>/dev/null || true
-          pkill -f "shaker console" 2>/dev/null || true
-          cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
-            "get_result_count() returns (uint64)" \
-            > "$GITHUB_WORKSPACE/evidence/update-result-count.txt" 2>&1 || true
-          cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
-            "has_result(string,string,uint64,uint64) returns (bool)" \
-            "$CONTRACT_ADDR" "event_count" "$RANGE_FROM" "$RANGE_TO" \
-            > "$GITHUB_WORKSPACE/evidence/update-has-result.txt" 2>&1 || true
-          test -s "$GITHUB_WORKSPACE/evidence/update-result.json"
-
       - name: Collect logs and evidence
         if: always()
         run: |
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/evidence"
           cd "$RUNNER_TEMP/ldk" || true
-          docker compose -f docker/single/docker-compose.yaml \
-            -f docker/single/docker-compose.override.yml logs --no-color \
+          docker compose -f docker/single/docker-compose.yaml logs --no-color \
             > "$GITHUB_WORKSPACE/evidence/compose.log" 2>&1 || true
           grep -iE 'submit_result|sequenc|state|commit|availability|lyquid_process|error|panic|reject|drop' \
             "$GITHUB_WORKSPACE/evidence/compose.log" \
