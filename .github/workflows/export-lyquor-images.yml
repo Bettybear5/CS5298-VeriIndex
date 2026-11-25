@@ -11,26 +11,25 @@ jobs:
   export:
     runs-on: ubuntu-latest
     steps:
-      - name: Log in to GHCR
+      - name: Install skopeo
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
-            -u "${{ github.actor }}" --password-stdin
+          sudo apt-get update
+          sudo apt-get install -y skopeo
 
-      - name: Pull images
+      - name: Export tools image
         run: |
-          docker pull --platform linux/amd64 ghcr.io/lyquor-labs/lyquor-tools:v0.8.4
-          docker pull --platform linux/amd64 ghcr.io/lyquor-labs/lyquids:bartender-bartender_release-latest
-
-      - name: Save tools image
-        run: |
-          docker save ghcr.io/lyquor-labs/lyquor-tools:v0.8.4 \
-            | gzip -1 > lyquor-tools-v0.8.4.tar.gz
+          skopeo copy --override-arch amd64 \
+            docker://ghcr.io/lyquor-labs/lyquor-tools:v0.8.4 \
+            docker-archive:lyquor-tools-v0.8.4.tar:ghcr.io/lyquor-labs/lyquor-tools:v0.8.4
+          gzip -1 lyquor-tools-v0.8.4.tar
           ls -lh lyquor-tools-v0.8.4.tar.gz
 
-      - name: Save bartender image
+      - name: Export bartender image
         run: |
-          docker save ghcr.io/lyquor-labs/lyquids:bartender-bartender_release-latest \
-            | gzip -1 > bartender-v0.8.4.tar.gz
+          skopeo copy --override-arch amd64 \
+            docker://ghcr.io/lyquor-labs/lyquids:bartender-bartender_release-latest \
+            docker-archive:bartender-v0.8.4.tar:ghcr.io/lyquor-labs/lyquids:bartender-bartender_release-latest
+          gzip -1 bartender-v0.8.4.tar
           ls -lh bartender-v0.8.4.tar.gz
 
       - name: Publish release assets
