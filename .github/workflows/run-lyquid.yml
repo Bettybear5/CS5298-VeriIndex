@@ -45,8 +45,18 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/ldk"
-          docker compose -f docker/single/docker-compose.yaml up -d
-          docker compose -f docker/single/docker-compose.yaml ps | tee "$GITHUB_WORKSPACE/evidence/compose-ps.txt"
+          cat > docker/single/docker-compose.override.yml <<'YAML'
+          services:
+            node:
+              environment:
+                LYQUOR_LOG: debug
+                RUST_LOG: debug
+          YAML
+          docker compose -f docker/single/docker-compose.yaml \
+            -f docker/single/docker-compose.override.yml up -d
+          docker compose -f docker/single/docker-compose.yaml \
+            -f docker/single/docker-compose.override.yml ps \
+            | tee "$GITHUB_WORKSPACE/evidence/compose-ps.txt"
           for i in $(seq 1 180); do
             if curl -sf --data '{}' -H 'content-type: application/json' \
               "$NODE_API/lyquor.lyquid.v1.LyquidService/GetLyquidInfo" | grep -q contract; then
@@ -266,6 +276,19 @@ jobs:
           cat /tmp/lyquid-values.sh
           source /tmp/lyquid-values.sh
 
+          cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
+            "get_result_count() returns (uint64)" \
+            > "$GITHUB_WORKSPACE/evidence/before-submit-count.txt" 2>&1 || true
+          cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
+            "has_result(string,string,uint64,uint64) returns (bool)" \
+            "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
+            > "$GITHUB_WORKSPACE/evidence/before-submit-has-result.txt" 2>&1 || true
+          timeout 20 cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
+            "get_result(string,string,uint64,uint64) returns (string)" \
+            "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
+            > "$GITHUB_WORKSPACE/evidence/before-submit-result.txt" \
+            2> "$GITHUB_WORKSPACE/evidence/before-submit-result.err" || true
+
           cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
             "$LYQUID_CONTRACT" \
             "submit_result(string,string,uint64,uint64,string,string,uint64,uint16)" \
@@ -273,6 +296,7 @@ jobs:
             "$RESULT_HASH" "$VALUE" "$EVENT_COUNT" 1 \
             2>&1 | tee "$GITHUB_WORKSPACE/evidence/submit.log"
 
+          sleep 3
           cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
             "get_result_count() returns (uint64)" \
             > "$GITHUB_WORKSPACE/evidence/result-count.txt" 2>&1 || true
@@ -280,6 +304,55 @@ jobs:
             "has_result(string,string,uint64,uint64) returns (bool)" \
             "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
             > "$GITHUB_WORKSPACE/evidence/has-result.txt" 2>&1 || true
+          timeout 20 cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
+            "get_result(string,string,uint64,uint64) returns (string)" \
+            "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
+            > "$GITHUB_WORKSPACE/evidence/result.json" \
+            2> "$GITHUB_WORKSPACE/evidence/get-result.err" || true
+
+          TX_HASH=$(grep -E '^transactionHash' "$GITHUB_WORKSPACE/evidence/submit.log" \
+            | awk '{print $2}' | head -1)
+          echo "$TX_HASH" > "$GITHUB_WORKSPACE/evidence/submit-tx.txt"
+          cast receipt "$TX_HASH" --rpc-url "$NODE_HTTP" \
+            > "$GITHUB_WORKSPACE/evidence/submit-receipt.txt" \
+            2> "$GITHUB_WORKSPACE/evidence/submit-receipt.err" || true
+          cast receipt "$TX_HASH" --rpc-url "$NODE_HTTP" --json \
+            > "$GITHUB_WORKSPACE/evidence/submit-receipt.json" \
+            2>> "$GITHUB_WORKSPACE/evidence/submit-receipt.err" || true
+          cast code "$LYQUID_CONTRACT" --rpc-url "$NODE_HTTP" \
+            > "$GITHUB_WORKSPACE/evidence/contract-code.txt" \
+            2> "$GITHUB_WORKSPACE/evidence/contract-code.err" || true
+
+          python3 - "$GITHUB_WORKSPACE/evidence/submit-receipt.json" \
+            "$LYQUID_CONTRACT" \
+            > "$GITHUB_WORKSPACE/evidence/receipt-log-check.txt" 2>&1 <<'PY'
+          import json, sys
+          contract = sys.argv[2].lower()
+          text = open(sys.argv[1], encoding="utf-8", errors="replace").read().strip()
+          try:
+              receipt = json.loads(text)
+          except json.JSONDecodeError:
+              print("receipt JSON parse failed")
+              raise SystemExit(0)
+          logs = receipt.get("logs", [])
+          print(f"contract={contract}")
+          print(f"log_count={len(logs)}")
+          for i, log in enumerate(logs):
+              address = str(log.get("address", "")).lower()
+              topics = log.get("topics", [])
+              print(f"log[{i}].address={address}")
+              print(f"log[{i}].address_matches_contract={address == contract}")
+              print(f"log[{i}].topics={topics}")
+              print(f"log[{i}].data={log.get('data', '')}")
+          PY
+
+          COUNT=$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/evidence/result-count.txt" || true)
+          if [ "$COUNT" = "0" ]; then
+            echo "after_submit_count=0; proceeding to Step 2 debug log inspection" \
+              | tee "$GITHUB_WORKSPACE/evidence/after-submit-zero.txt"
+            exit 1
+          fi
+
           for i in $(seq 1 120); do
             if timeout 20 cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
               "get_result(string,string,uint64,uint64) returns (string)" \
@@ -300,8 +373,12 @@ jobs:
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/evidence"
           cd "$RUNNER_TEMP/ldk" || true
-          docker compose -f docker/single/docker-compose.yaml logs --no-color \
+          docker compose -f docker/single/docker-compose.yaml \
+            -f docker/single/docker-compose.override.yml logs --no-color \
             > "$GITHUB_WORKSPACE/evidence/compose.log" 2>&1 || true
+          grep -iE 'submit_result|sequenc|state|commit|availability|lyquid_process|error|panic|reject|drop' \
+            "$GITHUB_WORKSPACE/evidence/compose.log" \
+            > "$GITHUB_WORKSPACE/evidence/debug-filtered.log" 2>&1 || true
           docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}' \
             > "$GITHUB_WORKSPACE/evidence/docker-ps.txt" || true
           find "$GITHUB_WORKSPACE/evidence" -maxdepth 1 -type f -printf '%f %s bytes\n' \
