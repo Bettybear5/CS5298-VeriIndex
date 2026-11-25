@@ -385,8 +385,8 @@ jobs:
           cast call --rpc-url "$NODE_HTTP" \
             "$LYQUID_CONTRACT" "set_min_proposals(uint16) returns (bool)" 1 \
             > "$GITHUB_WORKSPACE/evidence/update-set-min.log" 2>&1
-          cast call --rpc-url "$NODE_HTTP" \
-            "$LYQUID_CONTRACT" "report_result(string,string,uint64,uint64) returns (bool)" \
+          cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
+            "$LYQUID_CONTRACT" "report_result(string,string,uint64,uint64)" \
             "$CONTRACT_ADDR" "event_count" "$RANGE_FROM" "$RANGE_TO" \
             2>&1 | tee "$GITHUB_WORKSPACE/evidence/update-report.log"
           for i in $(seq 1 120); do
