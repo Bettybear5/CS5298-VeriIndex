@@ -1,0 +1,39 @@
+name: Export Lyquor images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull images
+        run: |
+          docker pull ghcr.io/lyquor-labs/lyquor-tools:v0.8.4
+          docker pull ghcr.io/lyquor-labs/lyquids:bartender-v0.8.4
+
+      - name: Save tools image
+        run: |
+          docker save ghcr.io/lyquor-labs/lyquor-tools:v0.8.4 \
+            | gzip -1 > lyquor-tools-v0.8.4.tar.gz
+          ls -lh lyquor-tools-v0.8.4.tar.gz
+
+      - name: Save bartender image
+        run: |
+          docker save ghcr.io/lyquor-labs/lyquids:bartender-v0.8.4 \
+            | gzip -1 > bartender-v0.8.4.tar.gz
+          ls -lh bartender-v0.8.4.tar.gz
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "images-v0.8.4" \
+            lyquor-tools-v0.8.4.tar.gz \
+            bartender-v0.8.4.tar.gz \
+            --title "Lyquor images v0.8.4" \
+            --notes "Docker image exports for offline loading"
