@@ -5,15 +5,21 @@ on:
 
 permissions:
   contents: write
+  packages: read
 
 jobs:
   export:
     runs-on: ubuntu-latest
     steps:
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
+
       - name: Pull images
         run: |
-          docker pull ghcr.io/lyquor-labs/lyquor-tools:v0.8.4
-          docker pull ghcr.io/lyquor-labs/lyquids:bartender-v0.8.4
+          docker pull --platform linux/amd64 ghcr.io/lyquor-labs/lyquor-tools:v0.8.4
+          docker pull --platform linux/amd64 ghcr.io/lyquor-labs/lyquids:bartender-v0.8.4
 
       - name: Save tools image
         run: |
