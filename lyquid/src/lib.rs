@@ -311,6 +311,29 @@ fn submit_result(
     Ok(true)
 }
 
+/// Schedule `report_result` after the current network slot commits.
+/// `TriggerMode::Commit` is only valid from network functions.
+#[method::network(export = eth)]
+fn trigger_report_result(
+    ctx: &mut _,
+    contract: String,
+    metric: String,
+    from_block: u64,
+    to_block: u64,
+) -> LyquidResult<bool> {
+    let _ = ctx;
+    trigger!(
+        report_result(
+            contract: String,
+            metric: String,
+            from_block: u64,
+            to_block: u64
+        ),
+        TriggerMode::Commit
+    );
+    Ok(true)
+}
+
 #[method::instance(export = eth)]
 fn report_result(
     ctx: &mut _,
