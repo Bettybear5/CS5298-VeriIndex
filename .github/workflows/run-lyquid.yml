@@ -265,13 +265,23 @@ jobs:
             "$RESULT_HASH" "$VALUE" "$EVENT_COUNT" 1 \
             2>&1 | tee "$GITHUB_WORKSPACE/evidence/submit.log"
 
-          for i in $(seq 1 60); do
-            RESULT=$(cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+          cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+            "get_result_count() returns (uint64)" \
+            > "$GITHUB_WORKSPACE/evidence/result-count.txt" 2>&1 || true
+          cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+            "has_result(string,string,uint64,uint64) returns (bool)" \
+            "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
+            > "$GITHUB_WORKSPACE/evidence/has-result.txt" 2>&1 || true
+          for i in $(seq 1 120); do
+            if timeout 20 cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
               "get_result(string,string,uint64,uint64) returns (string)" \
-              "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" 2>/dev/null || true)
-            if [ -n "$RESULT" ]; then
-              printf '%s\n' "$RESULT" | tee "$GITHUB_WORKSPACE/evidence/result.json"
-              break
+              "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
+              > "$GITHUB_WORKSPACE/evidence/result.json" \
+              2> "$GITHUB_WORKSPACE/evidence/get-result.err"; then
+              if [ -s "$GITHUB_WORKSPACE/evidence/result.json" ]; then
+                cat "$GITHUB_WORKSPACE/evidence/result.json"
+                break
+              fi
             fi
             sleep 2
           done
