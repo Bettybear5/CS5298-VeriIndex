@@ -59,6 +59,13 @@ jobs:
             sleep 2
           done
 
+          docker run --rm --network host \
+            -v "$RUNNER_TEMP/ldk:/ldk" \
+            ghcr.io/lyquor-labs/lyquor-tools:v0.8.4 \
+            shaker availability activate --committee auto --threshold 1 \
+            --endpoint "$NODE_WS" \
+            2>&1 | tee "$GITHUB_WORKSPACE/evidence/availability.log"
+
       - name: Deploy VeriIndex
         run: |
           set -euo pipefail
