@@ -183,8 +183,8 @@ jobs:
             > "$GITHUB_WORKSPACE/evidence/index-local.json"
           cat "$GITHUB_WORKSPACE/evidence/index-local.json"
 
-          python3 - "$GITHUB_WORKSPACE/evidence/index-local.json" <<'PY'
-          import json, os, sys
+          python3 - "$GITHUB_WORKSPACE/evidence/index-local.json" > /tmp/lyquid-values.sh <<'PY'
+          import json, sys
           text = open(sys.argv[1], encoding="utf-8", errors="replace").read().strip()
           data = None
           try:
@@ -200,23 +200,19 @@ jobs:
               raise SystemExit(f"cannot parse index_local output: {text[:500]}")
           proposal = data.get("proposal", data)
           result = proposal["result"]
-          values = {
-              "VALUE": str(result["value"]),
-              "EVENT_COUNT": str(result["event_count"]),
-              "RESULT_HASH": str(proposal["result_hash"]),
-          }
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
-              for k, v in values.items():
-                  env.write(f"{k}={v}\n")
-          print(values)
+          print(f"VALUE='{result['value']}'")
+          print(f"EVENT_COUNT='{result['event_count']}'")
+          print(f"RESULT_HASH='{proposal['result_hash']}'")
           PY
+          cat /tmp/lyquid-values.sh
+          source /tmp/lyquid-values.sh
 
           cast send --private-key "$PK" --rpc-url "$NODE_WS" \
             "$LYQUID_CONTRACT" \
             "submit_result(string,string,uint64,uint64,string,string,uint64,uint16)" \
             "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
             "$RESULT_HASH" "$VALUE" "$EVENT_COUNT" 1 \
-            | tee "$GITHUB_WORKSPACE/evidence/submit.log"
+            2>&1 | tee "$GITHUB_WORKSPACE/evidence/submit.log"
 
           for i in $(seq 1 60); do
             RESULT=$(cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
