@@ -205,8 +205,8 @@ jobs:
           INDEX_OK=0
           for RPC_URL in "${RPC_CANDIDATES[@]}"; do
             echo "Trying RPC: $RPC_URL" | tee -a "$GITHUB_WORKSPACE/evidence/rpc-attempts.txt"
-            if ! cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
-              "$LYQUID_CONTRACT" "set_rpc_url(string)" "$RPC_URL" \
+            if ! cast call --rpc-url "$NODE_HTTP" \
+              "$LYQUID_CONTRACT" "set_rpc_url(string) returns (bool)" "$RPC_URL" \
               > "$GITHUB_WORKSPACE/evidence/set-rpc.log" 2>&1; then
               echo "set_rpc_url failed" | tee -a "$GITHUB_WORKSPACE/evidence/rpc-attempts.txt"
               continue
@@ -382,11 +382,11 @@ jobs:
         run: |
           set -euo pipefail
           CONTRACT_ADDR="0xabc0000000000000000000000000000000000001"
-          cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
-            "$LYQUID_CONTRACT" "set_min_proposals(uint16)" 1 \
+          cast call --rpc-url "$NODE_HTTP" \
+            "$LYQUID_CONTRACT" "set_min_proposals(uint16) returns (bool)" 1 \
             > "$GITHUB_WORKSPACE/evidence/update-set-min.log" 2>&1
-          cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
-            "$LYQUID_CONTRACT" "report_result(string,string,uint64,uint64)" \
+          cast call --rpc-url "$NODE_HTTP" \
+            "$LYQUID_CONTRACT" "report_result(string,string,uint64,uint64) returns (bool)" \
             "$CONTRACT_ADDR" "event_count" "$RANGE_FROM" "$RANGE_TO" \
             2>&1 | tee "$GITHUB_WORKSPACE/evidence/update-report.log"
           for i in $(seq 1 120); do
