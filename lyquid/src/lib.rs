@@ -155,14 +155,14 @@ fn propose(
     let node_id = ctx.node_id.to_string();
     let proposal = rpc::index_request(&rpc_url, &request, &node_id)?;
     // TEMP-DEBUG: remove after trigger diagnosis.
-    lyquid::println!("TEMP-DEBUG propose returned result_hash={}", proposal.result_hash);
+    lyquid::eprintln!("TEMP-DEBUG propose returned result_hash={}", proposal.result_hash);
     Ok(proposal)
 }
 
 #[method::instance(group = oracle::two_phase::veriindex_oracle)]
 fn aggregate(ctx: &_) -> LyquidResult<Option<CertifiedCallParams>> {
     // TEMP-DEBUG: remove after trigger diagnosis.
-    lyquid::println!("TEMP-DEBUG aggregate entered inputs={}", ctx.inputs.len());
+    lyquid::eprintln!("TEMP-DEBUG aggregate entered inputs={}", ctx.inputs.len());
     let init = decode_by_fields!(
         ctx.init,
         contract: String,
@@ -174,10 +174,24 @@ fn aggregate(ctx: &_) -> LyquidResult<Option<CertifiedCallParams>> {
     )
     .ok_or_else(|| LyquidError::LyquorRuntime("failed to decode init params".into()))?;
 
+    // TEMP-DEBUG: remove after trigger diagnosis.
+    lyquid::eprintln!(
+        "TEMP-DEBUG aggregate inputs_len={} min_inputs={} below_min={}",
+        ctx.inputs.len(),
+        init.threshold,
+        ctx.inputs.len() < init.threshold as usize
+    );
+
     if init.target.seq_id != lyquor_api::sequence_backend_id()? {
         return Ok(None);
     }
     if ctx.inputs.len() < init.threshold as usize {
+        // TEMP-DEBUG: remove after trigger diagnosis.
+        lyquid::eprintln!(
+            "TEMP-DEBUG aggregate returning None inputs_len={} < min_inputs={}",
+            ctx.inputs.len(),
+            init.threshold
+        );
         return Ok(None);
     }
 
@@ -238,7 +252,7 @@ fn aggregate(ctx: &_) -> LyquidResult<Option<CertifiedCallParams>> {
     let input = encode_by_fields!(finalized: FinalizedResult = finalized).into();
 
     // TEMP-DEBUG: remove after trigger diagnosis.
-    lyquid::println!("TEMP-DEBUG aggregate returning CertifiedCallParams");
+    lyquid::eprintln!("TEMP-DEBUG aggregate returning CertifiedCallParams");
     Ok(Some(CertifiedCallParams {
         origin: Address::ZERO,
         method: "update".into(),
@@ -366,10 +380,18 @@ fn report_result(
     .into();
 
     // TEMP-DEBUG: remove after trigger diagnosis.
-    lyquid::println!("TEMP-DEBUG report_result entering propose_and_certify");
+    let init_hex = hex::encode(&init);
+    lyquid::eprintln!(
+        "TEMP-DEBUG report_result entering propose_and_certify init_hex={} min_inputs={}",
+        init_hex,
+        threshold
+    );
     let call = oracle.propose_and_certify(&mut ctx, target, init, None, Some(30_000))?;
     // TEMP-DEBUG: remove after trigger diagnosis.
-    lyquid::println!("TEMP-DEBUG report_result returned from propose_and_certify has_call={}", call.is_some());
+    lyquid::eprintln!(
+        "TEMP-DEBUG report_result returned from propose_and_certify has_call={}",
+        call.is_some()
+    );
     if let Some(call) = call {
         let _ = submit_certified_call!(call)?;
         Ok(true)
