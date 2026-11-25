@@ -391,6 +391,15 @@ jobs:
           cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
             "get_rpc_url() returns (string)" \
             > "$GITHUB_WORKSPACE/evidence/update-rpc-url.txt" 2>&1
+
+          timeout 120 script -q -c "docker run --rm -it --network host \
+            -v '$RUNNER_TEMP/ldk:/ldk' \
+            ghcr.io/lyquor-labs/lyquor-tools:v0.8.4 \
+            shaker console '$LYQUID_ID' --endpoint '$NODE_WS'" /dev/null \
+            > "$GITHUB_WORKSPACE/evidence/lyquid-console.log" 2>&1 &
+          CONSOLE_PID=$!
+          sleep 4
+
           cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
             "$LYQUID_CONTRACT" "trigger_report_result(string,string,uint64,uint64)" \
             "$CONTRACT_ADDR" "event_count" "$RANGE_FROM" "$RANGE_TO" \
@@ -411,6 +420,9 @@ jobs:
             fi
             sleep 5
           done
+          kill "$CONSOLE_PID" 2>/dev/null || true
+          wait "$CONSOLE_PID" 2>/dev/null || true
+          pkill -f "shaker console" 2>/dev/null || true
           cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
             "get_result_count() returns (uint64)" \
             > "$GITHUB_WORKSPACE/evidence/update-result-count.txt" 2>&1 || true
