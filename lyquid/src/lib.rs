@@ -272,6 +272,45 @@ fn update(ctx: &mut _, finalized: FinalizedResult) -> LyquidResult<bool> {
     Ok(true)
 }
 
+/// Direct registry write for single-node CI/testing. The multi-node path is
+/// `report_result`, which requires an oracle committee.
+#[method::network(export = eth)]
+fn submit_result(
+    ctx: &mut _,
+    contract: String,
+    metric: String,
+    from_block: u64,
+    to_block: u64,
+    result_hash: String,
+    value: String,
+    event_count: u64,
+    quorum: u16,
+) -> LyquidResult<bool> {
+    if result_hash.is_empty() {
+        return Err(LyquidError::LyquorRuntime("empty result hash".into()));
+    }
+    if quorum == 0 {
+        return Err(LyquidError::LyquorRuntime("quorum must be positive".into()));
+    }
+    let contract = contract.to_lowercase();
+    let key = ResultRecord::key(&metric, &contract, from_block, to_block);
+    let record = ResultRecord {
+        result_hash,
+        contract,
+        metric,
+        from_block,
+        to_block,
+        event_count,
+        value,
+        quorum,
+        timestamp: lyquor_api::systime()?,
+        signers: Vec::new(),
+    };
+    ctx.network.results.insert(key, record);
+    *ctx.network.result_count += 1;
+    Ok(true)
+}
+
 #[method::instance(export = eth)]
 fn report_result(
     ctx: &mut _,
