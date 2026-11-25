@@ -1,0 +1,219 @@
+name: Run VeriIndex Lyquid
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  PK: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+  NODE_WS: "ws://127.0.0.1:10087/ws"
+  NODE_API: "http://127.0.0.1:10087"
+  RPC: "https://ethereum-sepolia-rpc.publicnode.com"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Clone LDK and copy VeriIndex
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/lyquor-labs/ldk.git "$RUNNER_TEMP/ldk"
+          rm -rf "$RUNNER_TEMP/ldk/veriindex"
+          cp -r "$GITHUB_WORKSPACE/lyquid" "$RUNNER_TEMP/ldk/veriindex"
+          mkdir -p "$GITHUB_WORKSPACE/evidence"
+
+      - name: Log in to GHCR
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
+
+      - name: Start single-node Lyquor devnet
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/ldk"
+          docker compose -f docker/single/docker-compose.yaml up -d
+          docker compose -f docker/single/docker-compose.yaml ps | tee "$GITHUB_WORKSPACE/evidence/compose-ps.txt"
+          for i in $(seq 1 180); do
+            if curl -sf --data '{}' -H 'content-type: application/json' \
+              "$NODE_API/lyquor.lyquid.v1.LyquidService/GetLyquidInfo" | grep -q contract; then
+              echo "Lyquor node and bartender are ready"
+              break
+            fi
+            if [ "$i" -eq 180 ]; then
+              echo "Timed out waiting for Lyquor node"
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Deploy VeriIndex
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -v "$RUNNER_TEMP/ldk:/ldk" -w /ldk \
+            ghcr.io/lyquor-labs/lyquor-tools:v0.8.4 \
+            shaker deploy /ldk/veriindex/Cargo.toml \
+            --endpoint "$NODE_WS" \
+            --private-key "$PK" \
+            --output json \
+            > "$GITHUB_WORKSPACE/evidence/deploy.json" \
+            2> "$GITHUB_WORKSPACE/evidence/deploy.log"
+          cat "$GITHUB_WORKSPACE/evidence/deploy.json"
+          cat "$GITHUB_WORKSPACE/evidence/deploy.log"
+
+      - name: Parse deploy IDs
+        if: success()
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          path = pathlib.Path(os.environ["GITHUB_WORKSPACE"]) / "evidence" / "deploy.json"
+          text = path.read_text(encoding="utf-8", errors="replace")
+          try:
+              data = json.loads(text)
+          except json.JSONDecodeError:
+              matches = re.findall(r"\{.*\}", text, re.S)
+              if not matches:
+                  raise SystemExit("cannot find deploy JSON")
+              data = json.loads(matches[-1])
+          lyquid_id = data.get("lyquid_id") or data.get("lyquidId")
+          contract = data.get("contract")
+          if not lyquid_id or not contract:
+              raise SystemExit(f"missing IDs in deploy output: {data}")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"LYQUID_ID={lyquid_id}\n")
+              env.write(f"LYQUID_CONTRACT={contract}\n")
+          print("Lyquid:", lyquid_id)
+          print("Contract:", contract)
+          PY
+
+      - name: Configure oracle committee
+        if: success()
+        run: |
+          set -euo pipefail
+          NODE_JSON=$(curl -sf --data '{}' -H 'content-type: application/json' \
+            "$NODE_API/lyquor.node.v1.NodeService/GetNodeInfo")
+          echo "$NODE_JSON" > "$GITHUB_WORKSPACE/evidence/node-info.json"
+          NODE_RAW=$(printf '%s' "$NODE_JSON" | jq -r '.node_id.value // .nodeId.value')
+          NODE_HEX=$(python3 - "$NODE_RAW" <<'PY'
+          import base64, sys
+          value = sys.argv[1]
+          if value.startswith("Node-"):
+              value = value[5:]
+          value = value.upper()
+          value += "=" * ((8 - len(value) % 8) % 8)
+          decoded = base64.b32decode(value, casefold=True)
+          if len(decoded) != 35:
+              raise SystemExit(f"unexpected node id length: {len(decoded)}")
+          print("0x" + decoded[:32].hex())
+          PY
+          )
+          echo "Node ID: $NODE_HEX"
+          cast send --private-key "$PK" --rpc-url "$NODE_WS" \
+            "$LYQUID_CONTRACT" "configure_committee(bytes32[])" "[$NODE_HEX]" \
+            | tee "$GITHUB_WORKSPACE/evidence/configure.log"
+
+          TARGET=$(docker run --rm --network host \
+            -v "$RUNNER_TEMP/ldk:/ldk" \
+            ghcr.io/lyquor-labs/lyquor-tools:v0.8.4 \
+            shaker to-hex "$LYQUID_ID" | tail -1)
+          echo "Target: $TARGET"
+          echo "$TARGET" > "$GITHUB_WORKSPACE/evidence/target.txt"
+
+          for i in $(seq 1 60); do
+            RESULT=$(cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+              "__lyquor_oracle_advance_epoch(string,address,bool) returns (bool)" \
+              veriindex_oracle "$TARGET" false || true)
+            if [ "$(printf '%s' "$RESULT" | tr -d '[:space:]')" = "true" ]; then
+              break
+            fi
+            sleep 2
+          done
+          for i in $(seq 1 60); do
+            RESULT=$(cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+              "__lyquor_oracle_finalize_epoch(string,address,bool) returns (bool)" \
+              veriindex_oracle "$TARGET" false || true)
+            if [ "$(printf '%s' "$RESULT" | tr -d '[:space:]')" = "true" ]; then
+              break
+            fi
+            sleep 2
+          done
+          cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+            "get_node_ids() returns (string[])" \
+            | tee "$GITHUB_WORKSPACE/evidence/node-ids.txt"
+
+      - name: Run indexing round
+        if: success()
+        run: |
+          set -euo pipefail
+          cast send --private-key "$PK" --rpc-url "$NODE_WS" \
+            "$LYQUID_CONTRACT" "set_rpc_url(string)" "$RPC" \
+            | tee "$GITHUB_WORKSPACE/evidence/set-rpc.log"
+          cast send --private-key "$PK" --rpc-url "$NODE_WS" \
+            "$LYQUID_CONTRACT" "set_min_proposals(uint16)" 1 \
+            | tee "$GITHUB_WORKSPACE/evidence/set-min.log"
+
+          LATEST=$(cast block-number --rpc-url "$RPC" || true)
+          if [ -n "$LATEST" ]; then
+            FROM=$((LATEST - 1000))
+            TO=$LATEST
+          else
+            FROM=5000000
+            TO=5010000
+          fi
+          echo "Range: $FROM..$TO" | tee "$GITHUB_WORKSPACE/evidence/range.txt"
+
+          cast send --private-key "$PK" --rpc-url "$NODE_WS" \
+            "$LYQUID_CONTRACT" "report_result(string,string,uint64,uint64)" \
+            "0xabc0000000000000000000000000000000000001" \
+            "deposit_total" "$FROM" "$TO" \
+            | tee "$GITHUB_WORKSPACE/evidence/report.log"
+
+          for i in $(seq 1 60); do
+            RESULT=$(cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+              "get_result(string,string,uint64,uint64) returns (string)" \
+              "0xabc0000000000000000000000000000000000001" \
+              "deposit_total" "$FROM" "$TO" 2>/dev/null || true)
+            if [ -n "$RESULT" ]; then
+              printf '%s\n' "$RESULT" | tee "$GITHUB_WORKSPACE/evidence/result.json"
+              break
+            fi
+            sleep 2
+          done
+          test -s "$GITHUB_WORKSPACE/evidence/result.json"
+
+      - name: Collect logs and evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/evidence"
+          cd "$RUNNER_TEMP/ldk" || true
+          docker compose -f docker/single/docker-compose.yaml logs --no-color \
+            > "$GITHUB_WORKSPACE/evidence/compose.log" 2>&1 || true
+          docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}' \
+            > "$GITHUB_WORKSPACE/evidence/docker-ps.txt" || true
+          find "$GITHUB_WORKSPACE/evidence" -maxdepth 1 -type f -printf '%f %s bytes\n' \
+            | sort > "$GITHUB_WORKSPACE/evidence/index.txt" || true
+          cat "$GITHUB_WORKSPACE/evidence/index.txt" || true
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lyquid-run-evidence
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 7
