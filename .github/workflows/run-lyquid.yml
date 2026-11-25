@@ -10,6 +10,7 @@ permissions:
 env:
   PK: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
   NODE_WS: "ws://127.0.0.1:10087/ws"
+  NODE_HTTP: "http://127.0.0.1:10087/api"
   NODE_API: "http://127.0.0.1:10087"
   RPC: "https://ethereum-sepolia-rpc.publicnode.com"
 
@@ -129,7 +130,7 @@ jobs:
           PY
           )
           echo "Node ID: $NODE_HEX"
-          cast send --private-key "$PK" --rpc-url "$NODE_WS" \
+          cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
             "$LYQUID_CONTRACT" "configure_committee(bytes32[])" "[$NODE_HEX]" \
             | tee "$GITHUB_WORKSPACE/evidence/configure.log"
 
@@ -141,7 +142,7 @@ jobs:
           echo "$TARGET" > "$GITHUB_WORKSPACE/evidence/target.txt"
 
           for i in $(seq 1 60); do
-            RESULT=$(cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+            RESULT=$(cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
               "__lyquor_oracle_advance_epoch(string,address,bool) returns (bool)" \
               veriindex_oracle "$TARGET" false || true)
             if [ "$(printf '%s' "$RESULT" | tr -d '[:space:]')" = "true" ]; then
@@ -150,7 +151,7 @@ jobs:
             sleep 2
           done
           for i in $(seq 1 60); do
-            RESULT=$(cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+            RESULT=$(cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
               "__lyquor_oracle_finalize_epoch(string,address,bool) returns (bool)" \
               veriindex_oracle "$TARGET" false || true)
             if [ "$(printf '%s' "$RESULT" | tr -d '[:space:]')" = "true" ]; then
@@ -158,7 +159,7 @@ jobs:
             fi
             sleep 2
           done
-          cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+          cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
             "get_node_ids() returns (string[])" \
             | tee "$GITHUB_WORKSPACE/evidence/node-ids.txt"
 
@@ -187,7 +188,7 @@ jobs:
           INDEX_OK=0
           for RPC_URL in "${RPC_CANDIDATES[@]}"; do
             echo "Trying RPC: $RPC_URL" | tee -a "$GITHUB_WORKSPACE/evidence/rpc-attempts.txt"
-            if ! cast send --private-key "$PK" --rpc-url "$NODE_WS" \
+            if ! cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
               "$LYQUID_CONTRACT" "set_rpc_url(string)" "$RPC_URL" \
               > "$GITHUB_WORKSPACE/evidence/set-rpc.log" 2>&1; then
               echo "set_rpc_url failed" | tee -a "$GITHUB_WORKSPACE/evidence/rpc-attempts.txt"
@@ -195,7 +196,7 @@ jobs:
             fi
             for i in $(seq 1 4); do
               : > "$GITHUB_WORKSPACE/evidence/index-local.json"
-              if timeout 60 cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+              if timeout 60 cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
                 "index_local(string,string,uint64,uint64) returns (string)" \
                 "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
                 > "$GITHUB_WORKSPACE/evidence/index-local.json" \
@@ -265,22 +266,22 @@ jobs:
           cat /tmp/lyquid-values.sh
           source /tmp/lyquid-values.sh
 
-          cast send --private-key "$PK" --rpc-url "$NODE_WS" \
+          cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
             "$LYQUID_CONTRACT" \
             "submit_result(string,string,uint64,uint64,string,string,uint64,uint16)" \
             "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
             "$RESULT_HASH" "$VALUE" "$EVENT_COUNT" 1 \
             2>&1 | tee "$GITHUB_WORKSPACE/evidence/submit.log"
 
-          cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+          cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
             "get_result_count() returns (uint64)" \
             > "$GITHUB_WORKSPACE/evidence/result-count.txt" 2>&1 || true
-          cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+          cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
             "has_result(string,string,uint64,uint64) returns (bool)" \
             "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
             > "$GITHUB_WORKSPACE/evidence/has-result.txt" 2>&1 || true
           for i in $(seq 1 120); do
-            if timeout 20 cast call --rpc-url "$NODE_WS" "$LYQUID_CONTRACT" \
+            if timeout 20 cast call --rpc-url "$NODE_HTTP" "$LYQUID_CONTRACT" \
               "get_result(string,string,uint64,uint64) returns (string)" \
               "$CONTRACT_ADDR" "deposit_total" "$FROM" "$TO" \
               > "$GITHUB_WORKSPACE/evidence/result.json" \
