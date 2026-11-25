@@ -8,9 +8,11 @@ result hash on chain.
 > **Status.** This repository contains a runnable offline reference
 > implementation, the Sepolia-facing Solidity contracts, and a Lyquid crate
 > targeting the official LDK 0.8.4. The reference implementation is what the
-> tests and the reproducibility script execute. The Lyquid crate follows the
-> official oracle two-phase pattern and must be compiled/deployed inside the LDK
-> Docker environment; see `lyquid/README.md`.
+> tests and the reproducibility script execute. A single-node Lyquid devnet run
+> verifies the direct registry path (`index_local -> submit_result ->
+> get_result`); the oracle two-phase update path is implemented but not validated
+> on a single-node committee. See `lyquid/README.md` and
+> `report/evidence/lyquid-run-direct.json`.
 
 ## Why this project
 
