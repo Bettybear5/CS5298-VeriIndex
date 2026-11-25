@@ -263,7 +263,7 @@ fn update(ctx: &mut _, finalized: FinalizedResult) -> LyquidResult<bool> {
         event_count: finalized.result.event_count,
         value: finalized.result.value,
         quorum: finalized.signers.len() as u16,
-        timestamp: lyquor_api::systime()?,
+        timestamp: lyquor_api::chain_pos()?.block(),
         signers: finalized.signers,
     };
 
@@ -303,7 +303,7 @@ fn submit_result(
         event_count,
         value,
         quorum,
-        timestamp: lyquor_api::systime()?,
+        timestamp: lyquor_api::chain_pos()?.block(),
         signers: Vec::new(),
     };
     ctx.network.results.insert(key, record);
