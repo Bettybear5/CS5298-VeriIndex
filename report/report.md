@@ -4,10 +4,11 @@
 Department of Computer Science, City University of Hong Kong  
 CS5298 Final Project
 
-> **Draft status.** This report currently contains the problem analysis, design,
-> reference-implementation results, and evaluation plan. Items marked
-> `[TBD]` must be replaced with the Lyquid-on-devnet/Sepolia run and the
-> external-user study before submission. Do not submit placeholders.
+> **Status.** The report includes the problem analysis, design,
+> reference-implementation results, the single-node Lyquid devnet run, and the
+> evaluation plan. The direct registry path is verified; the oracle two-phase
+> update path is implemented but not validated on a single-node committee.
+> External-user testing and instructor approval remain pending.
 
 ## Abstract
 
@@ -20,8 +21,9 @@ canonical metric, propose the result hash to a Lyquid oracle committee, and a
 quorum-backed commitment is recorded in network state. This report describes the problem, the protocol, a runnable
 reference implementation, the Sepolia-facing contracts, and an evaluation that
 includes a deliberately lying node. The reference evaluation passes
-determinism and tamper checks; the remaining work is the Lyquid-on-devnet run,
-the Sepolia registry run, and the external-user study.
+determinism and tamper checks. A single-node Lyquid devnet run verifies the
+direct registry path (`index_local -> submit_result -> get_result`); the
+multi-node oracle update path and the external-user study remain future work.
 
 ## 1. Problem Analysis
 
@@ -217,8 +219,26 @@ requires a quorum of matching hashes; the certified `update` method writes a
 registry to consumers. The integration steps are documented in
 `lyquid/README.md`.
 
-`[TBD: insert the devnet deployment transaction, committee node IDs, and the
-Lyquid result hash once the LDK Docker environment is available.]`
+The single-node devnet run used:
+
+- `lyquid_id`: `Lyquid-ahjg4huwvban3bvhxue7rcbaw4mnltwyolhqa`
+- contract: `0x0165878a594ca255338adfa4d48449f69242eb8f`
+- committee node: `Node-ve3tav5jw5ico7or34gcb6ni7rtmd35uokriuijygabd3tsltd7fj6ia`
+- direct-path value: `0`
+- event count: `0`
+- block range: `12210249..12211249`
+- result hash: `0x7bfd1cccbe002850c39035c2f624b27f04021791ce23e4bbe880e37dbc741431`
+
+The verified path is `index_local` (fetch logs and canonicalize), then
+`submit_result` (network-state registry write), then `get_result`. The run
+returned `get_result_count = 1`, `has_result = true`, and the JSON record
+quoted in Section 5.5.
+
+The oracle two-phase path (`report_result -> propose -> aggregate -> update`)
+is implemented but did not complete on the single-node committee: the run
+reached `propose` but produced no `aggregate`/`update` certificate. The
+validated submission therefore uses the direct registry path; multi-node
+oracle validation is future work.
 
 ## 5. Evaluation and Results
 
@@ -231,7 +251,10 @@ out-of-range log. The target contract is `0xAbC...0001`, range
 5,000,000–5,010,000.
 
 The reference runs on Python 3.11+ with `eth-account` and `pytest`. The contract
-tests require Foundry. The Lyquid/Sepolia results are `[TBD]`.
+tests require Foundry. The single-node Lyquid direct registry path was executed
+in GitHub Actions against the local Lyquor devnet. The Sepolia-facing
+`ResultRegistry` mirror was not deployed; the verified registry is the Lyquid
+network state.
 
 ### 5.2 Results
 
@@ -243,6 +266,7 @@ tests require Foundry. The Lyquid/Sepolia results are `[TBD]`.
 | Tamper detection (2-of-3) | `CONSENSUS`, correct value, lying node in dissent | `reference/tests/test_quorum.py` |
 | Strict threshold (3-of-3) | `DISPUTED`, no selected hash | `reference/tests/test_quorum.py` |
 | Demo | `RESULT: PASS` | `python -m veriindex.cli demo` |
+| Lyquid devnet, direct path | `get_result_count=1`, `has_result=true`, JSON returned | `report/evidence/lyquid-run-direct.json` |
 | Reference latency | ~0.006 ms per query on the fixture | microbenchmark, not production |
 
 The selected result hash for the fixture is
@@ -264,8 +288,31 @@ one resulting improvement.]`
 
 ### 5.5 On-chain and Lyquid results
 
-`[TBD: Sepolia contract addresses, transaction hashes, gas for submitResult and
-getResult, and the devnet Lyquid run.]`
+The clean single-node run produced:
+
+```text
+lyquid_id: Lyquid-ahjg4huwvban3bvhxue7rcbaw4mnltwyolhqa
+contract:  0x0165878a594ca255338adfa4d48449f69242eb8f
+node:      Node-ve3tav5jw5ico7or34gcb6ni7rtmd35uokriuijygabd3tsltd7fj6ia
+range:     12210249..12211249
+submit tx: 0x109ed399a05dfb3208f1c8a2e0f4a914196a28b11d8d7d08f9bc92898925c1cb
+count:     1
+has_result:true
+```
+
+`get_result` returned:
+
+```json
+"{\"result_hash\":\"0x7bfd1cccbe002850c39035c2f624b27f04021791ce23e4bbe880e37dbc741431\",\"contract\":\"0xabc0000000000000000000000000000000000001\",\"metric\":\"deposit_total\",\"from_block\":12210249,\"to_block\":12211249,\"event_count\":0,\"value\":\"0\",\"quorum\":1,\"timestamp\":12,\"signers\":[]}"
+```
+
+The timestamp is the Lyquor block number, produced by `chain_pos().block()`,
+not wall-clock time. The empty signer list is expected for the direct
+`submit_result` path; signers are populated by the oracle `update` path.
+
+The oracle path is not claimed as verified. In the single-node run it reached
+`propose` but did not produce `aggregate/update`, so no oracle-certified record
+was written. The direct path is the supported single-node result.
 
 ## 6. Limitations and Reflection
 
@@ -282,6 +329,10 @@ getResult, and the devnet Lyquid run.]`
   claimed.
 - **Usability.** The CLI is minimal. The user study will show whether the
   workflow is understandable.
+- **Single-node oracle path.** The two-phase `report_result -> propose ->
+  aggregate -> update` path is implemented but did not complete on the
+  single-node committee. The validated run uses direct `submit_result`; a
+  multi-node oracle run is the next step.
 
 Concrete next step: add a second independent RPC and a reorg check that stores
 the block hash alongside the result hash, then re-run the tamper evaluation.
