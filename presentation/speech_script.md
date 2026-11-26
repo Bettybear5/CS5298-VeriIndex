@@ -33,7 +33,7 @@ Implementation is split into three pieces. The Python reference is the determini
 
 ## 3:55–4:30 — Results
 
-The reference implementation passes sixteen tests, including determinism, correctness against an independent recomputation, and tamper detection. The 2-of-3 case reaches consensus while recording the lying node as dissent. The 3-of-3 case is disputed. On the Lyquid side, the clean single-node run returned count one, has-result true, and a JSON record with hash `0x7bfd1c`, value zero, quorum one, and block timestamp twelve. The oracle update path did not complete on a single node, and I do not claim it as verified.
+The reference implementation passes sixteen tests, including determinism, correctness against an independent recomputation, and tamper detection. The 2-of-3 case reaches consensus while recording the lying node as dissent. The 3-of-3 case is disputed. On the Lyquid side, the clean single-node run returned count one, has-result true, and a JSON record with hash `0x2d4638`, value 69023557792913378, quorum one, and block timestamp twelve. The oracle update path did not complete on a single node, and I do not claim it as verified.
 
 ## 4:30–5:00 — Limitations and conclusion
 
@@ -41,7 +41,7 @@ The honest limitation is scope. I verified deployment, the direct registry path,
 
 ## 5:00–8:00 — Recorded demo
 
-I will now switch to the recorded demo. It starts the single-node Lyquor devnet and deploys VeriIndex. The deploy output gives the Lyquid ID and the sequencer contract. It then calls `index_local` over a recent Sepolia range. The proposal contains the canonical result and its hash. Next, `submit_result` writes the record into Lyquid network state. The transaction hash is `0x109ed3`. Finally, `get_result_count` returns one, `has_result` returns true, and `get_result` returns the JSON record with value zero, quorum one, and block timestamp twelve. The oracle update path is not shown as a success because it did not complete on a single-node committee.
+I will now switch to the recorded demo. It starts the single-node Lyquor devnet and deploys VeriIndex. The deploy output gives the Lyquid ID and the sequencer contract. It then calls `index_local` over a fixed Sepolia WETH9 range, 12212875 to 12212975. The proposal contains the canonical result and its hash. Next, `submit_result` writes the record into Lyquid network state. The transaction hash is `0x3e5a13`. Finally, `get_result_count` returns one, `has_result` returns true, and `get_result` returns the JSON record with value 69023557792913378, quorum one, and block timestamp twelve. The oracle update path is not shown as a success because it did not complete on a single-node committee.
 
 ## Q&A preparation
 
