@@ -222,12 +222,13 @@ registry to consumers. The integration steps are documented in
 The single-node devnet run used:
 
 - `lyquid_id`: `Lyquid-ahjg4huwvban3bvhxue7rcbaw4mnltwyolhqa`
-- contract: `0x0165878a594ca255338adfa4d48449f69242eb8f`
+- Lyquid contract: `0x0165878a594ca255338adfa4d48449f69242eb8f`
+- indexed contract: `0xfff9976782d46cc05630d1f6ebab18b2324d6b14` (Sepolia WETH9)
 - committee node: `Node-ve3tav5jw5ico7or34gcb6ni7rtmd35uokriuijygabd3tsltd7fj6ia`
-- direct-path value: `0`
-- event count: `0`
-- block range: `12210249..12211249`
-- result hash: `0x7bfd1cccbe002850c39035c2f624b27f04021791ce23e4bbe880e37dbc741431`
+- direct-path value: `69023557792913378`
+- event count: `44`
+- block range: `12212875..12212975`
+- result hash: `0x2d463896132e0b66b993824f73a6c6c55cd53067750fe3bb4f00d8cace589011`
 
 The verified path is `index_local` (fetch logs and canonicalize), then
 `submit_result` (network-state registry write), then `get_result`. The run
@@ -266,7 +267,7 @@ network state.
 | Tamper detection (2-of-3) | `CONSENSUS`, correct value, lying node in dissent | `reference/tests/test_quorum.py` |
 | Strict threshold (3-of-3) | `DISPUTED`, no selected hash | `reference/tests/test_quorum.py` |
 | Demo | `RESULT: PASS` | `python -m veriindex.cli demo` |
-| Lyquid devnet, direct path | `get_result_count=1`, `has_result=true`, JSON returned | `report/evidence/lyquid-run-direct.json` |
+| Lyquid devnet, direct path | `get_result_count=1`, `has_result=true`, `event_count=44`, `value=69023557792913378` | `report/evidence/lyquid-run-direct.json` |
 | External user study | Not completed in this draft | Documented as a limitation |
 | Reference latency | ~0.006 ms per query on the fixture | microbenchmark, not production |
 
@@ -295,10 +296,11 @@ The clean single-node run produced:
 
 ```text
 lyquid_id: Lyquid-ahjg4huwvban3bvhxue7rcbaw4mnltwyolhqa
-contract:  0x0165878a594ca255338adfa4d48449f69242eb8f
+Lyquid contract: 0x0165878a594ca255338adfa4d48449f69242eb8f
+indexed contract: 0xfff9976782d46cc05630d1f6ebab18b2324d6b14 (Sepolia WETH9)
 node:      Node-ve3tav5jw5ico7or34gcb6ni7rtmd35uokriuijygabd3tsltd7fj6ia
-range:     12210249..12211249
-submit tx: 0x109ed399a05dfb3208f1c8a2e0f4a914196a28b11d8d7d08f9bc92898925c1cb
+range:     12212875..12212975
+submit tx: 0x3e5a13c38ab6a37021e53cefed6faacfdacfdc505c862c84ba46623c30580c4b
 count:     1
 has_result:true
 ```
@@ -306,7 +308,7 @@ has_result:true
 `get_result` returned:
 
 ```json
-"{\"result_hash\":\"0x7bfd1cccbe002850c39035c2f624b27f04021791ce23e4bbe880e37dbc741431\",\"contract\":\"0xabc0000000000000000000000000000000000001\",\"metric\":\"deposit_total\",\"from_block\":12210249,\"to_block\":12211249,\"event_count\":0,\"value\":\"0\",\"quorum\":1,\"timestamp\":12,\"signers\":[]}"
+"{\"result_hash\":\"0x2d463896132e0b66b993824f73a6c6c55cd53067750fe3bb4f00d8cace589011\",\"contract\":\"0xfff9976782d46cc05630d1f6ebab18b2324d6b14\",\"metric\":\"deposit_total\",\"from_block\":12212875,\"to_block\":12212975,\"event_count\":44,\"value\":\"69023557792913378\",\"quorum\":1,\"timestamp\":12,\"signers\":[]}"
 ```
 
 The timestamp is the Lyquor block number, produced by `chain_pos().block()`,
