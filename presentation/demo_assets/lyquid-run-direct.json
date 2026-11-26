@@ -1,0 +1,35 @@
+{
+  "source": "GitHub Actions run 45728324966",
+  "workflow": "Run VeriIndex Lyquid",
+  "result": "success",
+  "lyquid_id": "Lyquid-ahjg4huwvban3bvhxue7rcbaw4mnltwyolhqa",
+  "lyquid_contract": "0x0165878a594ca255338adfa4d48449f69242eb8f",
+  "indexed_contract": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
+  "committee": [
+    "Node-ve3tav5jw5ico7or34gcb6ni7rtmd35uokriuijygabd3tsltd7fj6ia"
+  ],
+  "range": {
+    "from_block": 12212875,
+    "to_block": 12212975
+  },
+  "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
+  "submit_tx": "0x3e5a13c38ab6a37021e53cefed6faacfdacfdc505c862c84ba46623c30580c4b",
+  "get_result_count": 1,
+  "has_result": true,
+  "get_result": {
+    "result_hash": "0x2d463896132e0b66b993824f73a6c6c55cd53067750fe3bb4f00d8cace589011",
+    "contract": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
+    "metric": "deposit_total",
+    "from_block": 12212875,
+    "to_block": 12212975,
+    "event_count": 44,
+    "value": "69023557792913378",
+    "quorum": 1,
+    "timestamp": 12,
+    "signers": []
+  },
+  "oracle_update_path": {
+    "status": "not validated on single-node committee",
+    "observed": "report_result reached propose but produced no aggregate/update certificate"
+  }
+}
