@@ -1,0 +1,201 @@
+# VeriIndex demo recording commands
+# File: presentation/pre_code
+# Use the local devnet path if Docker works.
+# Otherwise use the recorded-evidence fallback at the bottom.
+
+# ============================================================
+# 0. Environment (run in bash)
+# ============================================================
+
+export PROJECT=/home/bettybear5/CS5298-VeriIndex
+export LDK=/tmp/opencode/ldk
+export NODE_HTTP=http://127.0.0.1:10087/api
+export NODE_WS=ws://127.0.0.1:10087/ws
+export PK=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# PK is the public Anvil test key. Local devnet only.
+
+# ============================================================
+# 1. Start single-node Lyquor devnet
+# ============================================================
+
+cd "$LDK"
+docker compose -f docker/single/docker-compose.yaml up -d
+docker compose -f docker/single/docker-compose.yaml logs -f setup-devnet
+
+# Wait until the log shows:
+#   Lyquid ID: Lyquid-...
+#   Contract: 0x...
+# Then press Ctrl-C. The containers keep running.
+
+# ============================================================
+# 2. Copy VeriIndex into the LDK checkout
+# ============================================================
+
+rm -rf "$LDK/veriindex"
+cp -r "$PROJECT/lyquid" "$LDK/veriindex"
+
+# ============================================================
+# 3. Deploy the Lyquid
+# ============================================================
+
+docker run --rm --network host \
+  -v "$LDK:/ldk" -w /ldk \
+  ghcr.io/lyquor-labs/lyquor-tools:v0.8.4 \
+  shaker deploy /ldk/veriindex/Cargo.toml \
+  --endpoint "$NODE_WS" \
+  --private-key "$PK" \
+  --output json \
+  | tee /tmp/deploy.json
+
+export LYQUID_ID=$(jq -r '.lyquid_id' /tmp/deploy.json)
+export CONTRACT=$(jq -r '.contract' /tmp/deploy.json)
+
+echo "$LYQUID_ID"
+echo "$CONTRACT"
+
+# Expected:
+# Lyquid-ahjg4huwvban3bvhxue7rcbaw4mnltwyolhqa
+# 0x0165878a594ca255338adfa4d48449f69242eb8f
+
+# ============================================================
+# 4. Set RPC and quorum
+# ============================================================
+
+cast call --rpc-url "$NODE_HTTP" "$CONTRACT" \
+  "set_rpc_url(string) returns (bool)" \
+  "https://ethereum-sepolia-rpc.publicnode.com"
+
+cast call --rpc-url "$NODE_HTTP" "$CONTRACT" \
+  "set_min_proposals(uint16) returns (bool)" 1
+
+# Expected:
+# true
+# true
+
+# ============================================================
+# 5. Index real Sepolia WETH9 Deposit events
+# ============================================================
+
+cast call --rpc-url "$NODE_HTTP" "$CONTRACT" \
+  "index_local(string,string,uint64,uint64) returns (string)" \
+  0xfff9976782d46cc05630d1f6ebab18b2324d6b14 \
+  deposit_total \
+  12212875 \
+  12212975 \
+  | tee /tmp/index-local.json
+
+# Expected:
+# event_count = 44
+# value = 69023557792913378
+# result_hash = 0x2d463896132e0b66b993824f73a6c6c55cd53067750fe3bb4f00d8cace589011
+
+# ============================================================
+# 6. Parse the index result
+# ============================================================
+
+eval "$(python3 - /tmp/index-local.json <<'PY'
+import json, sys
+text = open(sys.argv[1], encoding="utf-8").read().strip()
+data = json.loads(text)
+if isinstance(data, str):
+    data = json.loads(data)
+proposal = data["proposal"]
+result = proposal["result"]
+print(f"VALUE={result['value']!r}")
+print(f"EVENT_COUNT={result['event_count']!r}")
+print(f"RESULT_HASH={proposal['result_hash']!r}")
+PY
+)"
+
+echo "$VALUE"
+echo "$EVENT_COUNT"
+echo "$RESULT_HASH"
+
+# Expected:
+# 69023557792913378
+# 44
+# 0x2d463896132e0b66b993824f73a6c6c55cd53067750fe3bb4f00d8cace589011
+
+# ============================================================
+# 7. Write the result into Lyquid network state
+# ============================================================
+
+cast send --private-key "$PK" --rpc-url "$NODE_HTTP" \
+  "$CONTRACT" \
+  "submit_result(string,string,uint64,uint64,string,string,uint64,uint16)" \
+  0xfff9976782d46cc05630d1f6ebab18b2324d6b14 \
+  deposit_total \
+  12212875 \
+  12212975 \
+  "$RESULT_HASH" \
+  "$VALUE" \
+  "$EVENT_COUNT" \
+  1 \
+  | tee /tmp/submit.log
+
+# Expected:
+# status 1 (success)
+# transactionHash 0x3e5a13c38ab6a37021e53cefed6faacfdacfdc505c862c84ba46623c30580c4b
+
+# ============================================================
+# 8. Read count and existence
+# ============================================================
+
+cast call --rpc-url "$NODE_HTTP" "$CONTRACT" \
+  "get_result_count() returns (uint64)"
+
+cast call --rpc-url "$NODE_HTTP" "$CONTRACT" \
+  "has_result(string,string,uint64,uint64) returns (bool)" \
+  0xfff9976782d46cc05630d1f6ebab18b2324d6b14 \
+  deposit_total \
+  12212875 \
+  12212975
+
+# Expected:
+# 1
+# true
+
+# ============================================================
+# 9. Read the full result JSON
+# ============================================================
+
+cast call --rpc-url "$NODE_HTTP" "$CONTRACT" \
+  "get_result(string,string,uint64,uint64) returns (string)" \
+  0xfff9976782d46cc05630d1f6ebab18b2324d6b14 \
+  deposit_total \
+  12212875 \
+  12212975 \
+  | tee /tmp/result.json
+
+# Expected JSON:
+# {
+#   "result_hash": "0x2d463896132e0b66b993824f73a6c6c55cd53067750fe3bb4f00d8cace589011",
+#   "contract": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
+#   "metric": "deposit_total",
+#   "from_block": 12212875,
+#   "to_block": 12212975,
+#   "event_count": 44,
+#   "value": "69023557792913378",
+#   "quorum": 1,
+#   "timestamp": 12,
+#   "signers": []
+# }
+
+# ============================================================
+# 10. Stop devnet
+# ============================================================
+
+cd "$LDK"
+docker compose -f docker/single/docker-compose.yaml down
+
+# ============================================================
+# Fallback: if local Docker is unavailable
+# ============================================================
+
+# Do not fake a live run. Record the saved CI evidence and say:
+# "This is the recorded output of the submitted implementation
+#  on the single-node Lyquor devnet."
+
+cd /home/bettybear5/CS5298-VeriIndex
+bash presentation/show_demo_evidence.sh
