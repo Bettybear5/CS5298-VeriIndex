@@ -175,15 +175,11 @@ jobs:
         if: success()
         run: |
           set -euo pipefail
-          CONTRACT_ADDR="0xabc0000000000000000000000000000000000001"
-          LATEST=$(timeout 20 cast block-number --rpc-url "$RPC" || true)
-          if [ -n "${LATEST:-}" ]; then
-            FROM=$((LATEST - 1000))
-            TO=$LATEST
-          else
-            FROM=5000000
-            TO=5010000
-          fi
+          # Sepolia WETH9: emits Deposit(address,uint256), matching EventSource.
+          # This fixed range contains 44 Deposit events; total fits u64.
+          CONTRACT_ADDR="0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+          FROM=12212875
+          TO=12212975
           echo "Range: $FROM..$TO" | tee "$GITHUB_WORKSPACE/evidence/range.txt"
 
           RPC_CANDIDATES=(
