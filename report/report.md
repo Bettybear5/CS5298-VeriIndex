@@ -267,6 +267,7 @@ network state.
 | Strict threshold (3-of-3) | `DISPUTED`, no selected hash | `reference/tests/test_quorum.py` |
 | Demo | `RESULT: PASS` | `python -m veriindex.cli demo` |
 | Lyquid devnet, direct path | `get_result_count=1`, `has_result=true`, JSON returned | `report/evidence/lyquid-run-direct.json` |
+| External user study | Not completed in this draft | Documented as a limitation |
 | Reference latency | ~0.006 ms per query on the fixture | microbenchmark, not production |
 
 The selected result hash for the fixture is
@@ -283,8 +284,10 @@ reference-path latency, not as a system-level performance claim.
 
 ### 5.4 User testing
 
-`[TBD: three external users, task completion time, errors, feedback, and at least
-one resulting improvement.]`
+The external-user study has not been completed in the current submission. The
+reproduction workflow was checked with the Python test suite, the CLI demo, and
+the GitHub Actions single-node Lyquid run. A three-user study remains required;
+it is not claimed as completed here.
 
 ### 5.5 On-chain and Lyquid results
 
@@ -327,8 +330,9 @@ was written. The direct path is the supported single-node result.
   implemented. This is deliberate for a solo project.
 - **Evaluation scale.** The fixture is small; no production-scale throughput is
   claimed.
-- **Usability.** The CLI is minimal. The user study will show whether the
-  workflow is understandable.
+- **Usability and user testing.** The CLI is minimal, and no external-user
+  study was completed before this draft. A three-user study is still required
+  to evaluate whether the workflow is understandable to non-authors.
 - **Single-node oracle path.** The two-phase `report_result -> propose ->
   aggregate -> update` path is implemented but did not complete on the
   single-node committee. The validated run uses direct `submit_result`; a
